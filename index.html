@@ -45,6 +45,8 @@ input,select{width:100%;padding:9px;border:1px solid #d1d5db;border-radius:8px;b
 .modal-box{width:min(760px,100%);max-height:88vh;overflow:auto;background:#fff;border-radius:16px;padding:18px}
 @media(max-width:800px){.order-filters{grid-template-columns:1fr 1fr}.order-summary{grid-template-columns:1fr 1fr}.order-actions{white-space:normal}.table-wrap{overflow:auto}.table{min-width:760px}}
 
+
+.product-pos-btn{display:flex!important;flex-direction:column;align-items:center;gap:5px;min-height:150px}.product-photo{width:72px;height:72px;object-fit:cover;border-radius:12px;border:1px solid #ddd;background:#f5f5f5}.pos-photo{width:78px;height:78px}.product-photo-placeholder{display:flex;align-items:center;justify-content:center;font-size:30px}.product-cell-photo{display:flex;align-items:center;gap:10px;min-width:190px}.table-photo{width:48px;height:48px;border-radius:8px}
 </style>
 
 <link rel="manifest" href="./manifest.webmanifest">
@@ -331,7 +333,7 @@ function pos(){
  let ms=state.data.menus.filter(m=>m.outlet_id===out.id&&m.available&&(cat==='Semua'||m.category===cat));
  const b=cartBreakdown();
  document.getElementById('app').innerHTML=`<div class="between"><div><h2>POS Kasir</h2><div class="muted">Outlet</div>${outletSelect()}</div><div class="barcode-actions"><button type="button" onclick="openBarcodeScanner()">📷 Scan Barcode</button><button onclick="state.cart=[];render()">Kosongkan Keranjang</button></div></div>
- <div class="posgrid"><div class="card"><div class="cat"><button class="${cat==='Semua'?'active':''}" onclick="state.category='Semua';render()">Semua</button>${cats.map(c=>`<button class="${cat===c?'active':''}" onclick="state.category='${c.replaceAll("'","\'")}';render()">${c}</button>`).join('')}</div><div class="menu">${ms.map(m=>`<button onclick="addCart('${m.id}')"><b>${escapeHtml(m.name)}</b><div class="small muted">${escapeHtml(m.category||'')}</div><div class="price">${money(m.price)}</div></button>`).join('')}</div>${!ms.length?'<p class="muted">Tidak ada menu yang tersedia untuk outlet ini.</p>':''}</div>
+ <div class="posgrid"><div class="card"><div class="cat"><button class="${cat==='Semua'?'active':''}" onclick="state.category='Semua';render()">Semua</button>${cats.map(c=>`<button class="${cat===c?'active':''}" onclick="state.category='${c.replaceAll("'","\'")}';render()">${c}</button>`).join('')}</div><div class="menu">${ms.map(m=>`<button class="product-pos-btn" onclick="addCart('${m.id}')">${productPhotoHtml(m,'product-photo pos-photo')}<b>${escapeHtml(m.name)}</b><div class="small muted">${escapeHtml(m.category||'')}</div><div class="price">${money(m.price)}</div></button>`).join('')}</div>${!ms.length?'<p class="muted">Tidak ada menu yang tersedia untuk outlet ini.</p>':''}</div>
  <div class="card"><h3>Pesanan Saat Ini</h3>${state.cart.length?state.cart.map(i=>`<div class="cart-item"><div style="min-width:0"><b>${escapeHtml(i.name)}</b><br><span class="muted">${money(i.price)} × ${qtyText(i.qty,unitOf(i))}</span><div class="cart-line-details"><span>Subtotal item: </span><span class="cart-line-subtotal">${money(lineGross(i))}</span></div><div class="less-row"><label>LESS (Rp)</label><input class="less-input" type="text" inputmode="numeric" value="${lineLess(i)?new Intl.NumberFormat('id-ID').format(lineLess(i)):'0'}" onchange="setCartLess('${i.id}',this.value)" aria-label="Less untuk ${escapeHtml(i.name)}"><span class="muted">Jumlah: <b>${money(lineTotal(i))}</b></span></div></div><div>${isMeasured(i)?`<button onclick="setCartQty('${i.id}')">Ubah</button><button class="qty-btn minus" onclick="changeQty('${i.id}',-1)" aria-label="Hapus item">×</button>`:`<button class="qty-btn minus" onclick="changeQty('${i.id}',-1)" aria-label="Kurangkan kuantiti">−</button><button class="qty-btn plus" onclick="changeQty('${i.id}',1)" aria-label="Tambah kuantiti">+</button>`}</div></div>`).join(''):'<p class="muted">Belum ada item.</p>'}<hr><div class="between"><span>Subtotal</span><b>${money(b.itemSubtotal)}</b></div><div class="between"><span>Discount</span><span>${money(b.disc)}</span></div><div class="between"><span>Service</span><span>${money(b.service)}</span></div><div class="between"><span>Tax</span><span>${money(b.tax)}</span></div><div class="between" style="font-size:20px;margin-top:8px"><b>TOTAL</b><b>${money(b.total)}</b></div>
  <label>Payment</label><select id="payment">${[['CASH',state.data.settings.payCash],['CARD',state.data.settings.payCard],['QR',state.data.settings.payQR]].filter(x=>x[1]).map(x=>`<option>${x[0]}</option>`).join('')}</select><div id="cashArea"></div>
  <div class="row" style="margin-top:10px"><button class="primary" style="flex:1" onclick="completeOrder(${b.total})" ${state.cart.length?'':'disabled'}>Bayar & Cetak Struk</button></div></div></div>`;
@@ -438,66 +440,107 @@ function menu(){
  document.getElementById('app').innerHTML=`<div class="between"><div><h2>Produk</h2><div class="muted">Kelola produk dan stok</div></div><button class="primary" onclick="addMenu()">+ Tambah Produk</button></div><div class="card product-table-wrap"><table class="table product-table"><tr><th>Produk</th><th>Kategori</th><th>Harga</th><th>Stok</th><th>Unit</th><th>Barcode</th><th>Batas Stok Rendah</th><th>Aksi</th></tr>${ms.map(m=>{
    const stock=Number(m.stock||0), min=Number(m.min_stock||0), unit=unitOf(m);
    const low=min>0&&stock<=min;
-   return `<tr><td><b>${m.name}</b></td><td>${m.category}</td><td>${money(m.price)}</td><td>${qtyText(stock,unit)}${low?' ⚠':' '}</td><td>${unit}</td><td>${escapeHtml(m.barcode||'—')}</td><td>${qtyText(min,unit)}${low?' <b>RENDAH</b>':''}</td><td><button onclick="editMenu('${m.id}')">Edit</button> <button onclick="toggleMenu('${m.id}')">${m.available?'Habis':'Tersedia'}</button></td></tr>`;
+   return `<tr><td class="product-cell-photo">${productPhotoHtml(m,'product-photo table-photo')}<b>${escapeHtml(m.name)}</b></td><td>${escapeHtml(m.category)}</td><td>${money(m.price)}</td><td>${qtyText(stock,unit)}${low?' ⚠':' '}</td><td>${unit}</td><td>${escapeHtml(m.barcode||'—')}</td><td>${qtyText(min,unit)}${low?' <b>RENDAH</b>':''}</td><td><button onclick="editMenu('${m.id}')">Edit</button> <button onclick="toggleMenu('${m.id}')">${m.available?'Habis':'Tersedia'}</button></td></tr>`;
  }).join('')}</table></div>`}
-async function addMenu(){
- let n=prompt('Nama produk?');if(!n)return;n=n.trim();
- let cat=prompt('Kategori?',state.data.categories[1]||'Lain-lain');if(cat===null)return;cat=(cat||'Lain-lain').trim()||'Lain-lain';
- let p=parseQty(prompt('Harga jual per unit (Rp)?','0'));if(!Number.isFinite(p)||p<0){alert('Harga tidak valid.');return}
- let unit=prompt('Unit sukatan? Pilih: unit / kg / gram / liter / ml','unit');if(unit===null)return;unit=String(unit||'unit').trim().toLowerCase();
- if(!['unit','kg','gram','liter','ml'].includes(unit)){alert('Unit harus: unit, kg, gram, liter, atau ml.');return}
- let stock=parseQty(prompt(`Stok awal (${unit})?`,'0'));if(!Number.isFinite(stock)||stock<0){alert('Stok tidak valid.');return}
- let min_stock=parseQty(prompt(`Batas stok rendah (${unit})?`,'0'));if(!Number.isFinite(min_stock)||min_stock<0){alert('Batas stok rendah tidak valid.');return}
- let barcode=prompt('Barcode (opsional)?','');if(barcode===null)return;barcode=barcode||'';
- if(!state.data.categories.includes(cat))state.data.categories.push(cat);
- state.data.menus.push({id:crypto.randomUUID(),outlet_id:state.outletId||'STORE-01',category:cat,name:n,price:p,stock,unit,barcode,available:true,active:true,min_stock});
- audit('Tambah produk','Produk',n);await save();render()
+async function pickProductPhoto(existing=''){
+ return await new Promise(resolve=>{
+   const input=document.createElement('input');input.type='file';input.accept='image/*';input.capture='environment';input.style.display='none';
+   document.body.appendChild(input);
+   input.onchange=async()=>{const f=input.files?.[0];if(!f){input.remove();resolve(existing||'');return}
+     try{const data=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(f)});
+       const img=new Image();img.onload=()=>{const max=700,scale=Math.min(1,max/Math.max(img.width,img.height)),w=Math.max(1,Math.round(img.width*scale)),h=Math.max(1,Math.round(img.height*scale));const c=document.createElement('canvas');c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);resolve(c.toDataURL('image/jpeg',0.78));};img.onerror=()=>resolve(existing||'');img.src=data;
+     }catch(e){resolve(existing||'')} finally{input.remove()}
+   };input.click();
+ })
 }
-async function editMenu(id){
-  const m=(state.data.menus||[]).find(x=>x.id===id);
-  if(!m){alert('Produk tidak ditemukan.');return;}
+function productPhotoHtml(m,cls='product-photo'){return m.photo?`<img class="${cls}" src="${m.photo}" alt="${escapeHtml(m.name||'')}" loading="lazy">`:`<div class="${cls} product-photo-placeholder">📦</div>`}
 
-  let name=prompt('Nama produk',m.name||'');
-  if(name===null)return;
-  name=name.trim();
-  if(!name){alert('Nama produk diperlukan.');return;}
-
-  let category=prompt('Kategori',m.category||'Lain-lain');
-  if(category===null)return;
-  category=(category||'Lain-lain').trim()||'Lain-lain';
-
-  let unit=prompt('Unit sukatan: unit / kg / gram / liter / ml',unitOf(m));
-  if(unit===null)return;
-  unit=String(unit||'unit').trim().toLowerCase();
-  if(!['unit','kg','gram','liter','ml'].includes(unit)){alert('Unit harus: unit, kg, gram, liter, atau ml.');return;}
-
-  const priceText=prompt('Harga jual (Rp)',String(Number(m.price||0)));
-  if(priceText===null)return;
-  const price=Number(String(priceText).replace(/[^\d.-]/g,''));
-  if(!Number.isFinite(price)||price<0){alert('Harga tidak valid.');return;}
-
-  const stockText=prompt(`Stok saat ini (${unit})`,String(Number(m.stock||0)));
-  if(stockText===null)return;
-  const stock=Number(String(stockText).replace(/[^\d.-]/g,''));
-  if(!Number.isFinite(stock)||stock<0){alert('Stok tidak valid.');return;}
-
-  const minText=prompt(`Batas stok rendah (${unit})`,String(Number(m.min_stock||0)));
-  if(minText===null)return;
-  const min_stock=Number(String(minText).replace(/[^\d.-]/g,''));
-  if(!Number.isFinite(min_stock)||min_stock<0){alert('Batas stok tidak valid.');return;}
-
-  let barcode=prompt('Barcode (opsional)',m.barcode||'');
-  if(barcode===null)return;
-  barcode=(barcode||'').trim();
-
-  if(!Array.isArray(state.data.categories))state.data.categories=['Semua'];
-  if(!state.data.categories.includes(category))state.data.categories.push(category);
-
-  Object.assign(m,{name,category,price,stock,unit,min_stock,barcode,updated_at:new Date().toISOString()});
-  audit('Edit produk','Produk',name);
-  await save();
-  render();
+function closeProductEditor(){document.getElementById('productEditorModal')?.remove()}
+let productEditorPhoto='';
+function productEditorPreview(){
+ const el=document.getElementById('productPhotoPreview');
+ if(!el)return;
+ el.innerHTML=productEditorPhoto
+   ? `<img src="${productEditorPhoto}" alt="Foto produk" style="width:100%;height:100%;object-fit:cover;border-radius:14px">`
+   : `<div style="height:100%;display:flex;align-items:center;justify-content:center;font-size:42px;background:#f8fafc;border-radius:14px">📦</div>`;
 }
+async function selectProductPhoto(file){
+ if(!file)return;
+ try{
+   const data=await new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file)});
+   const img=new Image();
+   img.onload=()=>{
+     const max=700,scale=Math.min(1,max/Math.max(img.width,img.height));
+     const w=Math.max(1,Math.round(img.width*scale)),h=Math.max(1,Math.round(img.height*scale));
+     const c=document.createElement('canvas');c.width=w;c.height=h;
+     const ctx=c.getContext('2d');ctx.drawImage(img,0,0,w,h);
+     productEditorPhoto=c.toDataURL('image/jpeg',0.78);productEditorPreview();
+   };
+   img.src=data;
+ }catch(e){alert('Foto tidak dapat diproses.');}
+}
+function clearProductPhoto(){productEditorPhoto='';productEditorPreview()}
+function openProductEditor(id=''){
+ const m=id?(state.data.menus||[]).find(x=>x.id===id):null;
+ if(id&&!m){alert('Produk tidak ditemukan.');return}
+ productEditorPhoto=m?.photo||'';
+ const cats=Array.isArray(state.data.categories)?state.data.categories.filter(x=>x&&x!=='Semua'):[];
+ document.getElementById('app').insertAdjacentHTML('beforeend',`<div id="productEditorModal" class="modal-backdrop" onclick="if(event.target===this)closeProductEditor()">
+   <div class="modal-box">
+    <div class="between"><div><h2>${m?'Edit Produk':'Tambah Produk'}</h2><div class="muted">Maklumat produk</div></div><button type="button" onclick="closeProductEditor()">✕</button></div>
+    <div class="grid" style="grid-template-columns:minmax(0,1fr) 190px;align-items:start;margin-top:14px">
+      <div>
+       <label>Nama Produk</label><input id="peName" value="${escapeHtml(m?.name||'')}" placeholder="Contoh: Teh Botol">
+       <label>Kategori</label><input id="peCategory" list="peCats" value="${escapeHtml(m?.category||cats[0]||'Lain-lain')}" placeholder="Kategori"><datalist id="peCats">${cats.map(x=>`<option value="${escapeHtml(x)}">`).join('')}</datalist>
+       <label>Harga Jual (Rp)</label><input id="pePrice" type="number" min="0" step="1" value="${Number(m?.price||0)}">
+       <label>Unit Sukatan</label><select id="peUnit"><option value="unit">unit</option><option value="kg">kg</option><option value="gram">gram</option><option value="liter">liter</option><option value="ml">ml</option></select>
+       <label>Stok Semasa</label><input id="peStock" type="number" min="0" step="any" value="${Number(m?.stock||0)}">
+       <label>Batas Stok Rendah</label><input id="peMin" type="number" min="0" step="any" value="${Number(m?.min_stock||0)}">
+       <label>Barcode (opsional)</label><input id="peBarcode" inputmode="numeric" value="${escapeHtml(m?.barcode||'')}" placeholder="Key-in atau scan kod barcode">
+      </div>
+      <div class="card" style="padding:12px;text-align:center">
+       <div class="muted" style="margin-bottom:8px;font-weight:700">📷 Foto Produk</div>
+       <div id="productPhotoPreview" style="width:100%;aspect-ratio:1;border-radius:14px;overflow:hidden;margin-bottom:10px"></div>
+       <input id="pePhotoInput" type="file" accept="image/*" capture="environment" style="display:none">
+       <div class="row" style="justify-content:center">
+        <button type="button" onclick="document.getElementById('pePhotoInput').click()">📷 Tambah / Tukar Foto</button>
+        <button type="button" onclick="clearProductPhoto()">Buang Foto</button>
+       </div>
+       <div class="muted" style="font-size:11px;margin-top:8px">Ambil gambar dengan kamera atau pilih dari Gallery.</div>
+      </div>
+    </div>
+    <div class="row" style="justify-content:flex-end;margin-top:16px"><button type="button" onclick="closeProductEditor()">Batal</button><button type="button" class="primary" onclick="saveProductEditor('${id}')">Simpan Produk</button></div>
+   </div></div>`);
+ const unit=document.getElementById('peUnit');unit.value=unitOf(m||{unit:'unit'});
+ const inp=document.getElementById('pePhotoInput');inp.onchange=()=>selectProductPhoto(inp.files?.[0]);
+ productEditorPreview();
+}
+async function saveProductEditor(id=''){
+ const name=(document.getElementById('peName')?.value||'').trim();
+ const category=(document.getElementById('peCategory')?.value||'Lain-lain').trim()||'Lain-lain';
+ const price=Number(document.getElementById('pePrice')?.value||0);
+ const unit=(document.getElementById('peUnit')?.value||'unit').trim().toLowerCase();
+ const stock=Number(document.getElementById('peStock')?.value||0);
+ const min_stock=Number(document.getElementById('peMin')?.value||0);
+ const barcode=(document.getElementById('peBarcode')?.value||'').trim();
+ if(!name){alert('Nama produk diperlukan.');return}
+ if(!Number.isFinite(price)||price<0){alert('Harga tidak valid.');return}
+ if(!['unit','kg','gram','liter','ml'].includes(unit)){alert('Unit tidak sah.');return}
+ if(!Number.isFinite(stock)||stock<0||!Number.isFinite(min_stock)||min_stock<0){alert('Stok tidak valid.');return}
+ if(!Array.isArray(state.data.categories))state.data.categories=['Semua'];
+ if(!state.data.categories.includes(category))state.data.categories.push(category);
+ if(id){
+   const m=(state.data.menus||[]).find(x=>x.id===id);if(!m)return;
+   Object.assign(m,{name,category,price,stock,unit,min_stock,barcode,photo:productEditorPhoto||'',updated_at:new Date().toISOString()});
+   audit('Edit produk','Produk',name);
+ }else{
+   state.data.menus.push({id:crypto.randomUUID(),outlet_id:state.outletId||'STORE-01',category,name,price,stock,unit,barcode,photo:productEditorPhoto||'',available:true,active:true,min_stock});
+   audit('Tambah produk','Produk',name);
+ }
+ await save();closeProductEditor();render();
+}
+function addMenu(){openProductEditor('')}
+function editMenu(id){openProductEditor(id)}
 
 async function toggleMenu(id){
   const m=(state.data.menus||[]).find(x=>x.id===id);
